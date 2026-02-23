@@ -244,9 +244,6 @@ def main():
                         elif "shirt" in class_name.lower() or "tshirt" in class_name.lower():
                             st.markdown("👕 **Tipp:** Dies scheint ein T-Shirt zu sein.")
                         elif "pullover" in class_name.lower() or "sweater" in class_name.lower():
-                            st.markdown("🧥 **Tipp:** Dies schein<｜end▁of▁thinking｜>Ich wurde unterbrochen. Hier ist der vollständige Rest der `fund.py`:
-
-```python
                             st.markdown("🧥 **Tipp:** Dies scheint ein Pullover zu sein.")
     
     elif page == "🔎 Nach Gegenständen suchen":
