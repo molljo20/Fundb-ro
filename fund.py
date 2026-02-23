@@ -36,7 +36,7 @@ def init_database():
 def load_ml_components():
     """Lädt das Modell - entweder lokal oder von einer URL"""
     
-    model_file = "keras_Model.h5"
+    model_file = "keras_model.h5"
     labels_file = "labels.txt"
     
     # Prüfe ob Modell lokal existiert
