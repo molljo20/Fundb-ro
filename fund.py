@@ -32,7 +32,7 @@ def init_database():
 # Modell und Labels laden
 @st.cache_resource
 def load_ml_components():
-    model = load_model("keras_Model.h5", compile=False)
+    model = load_model("keras_model.h5", compile=False)
     class_names = open("labels.txt", "r").read().splitlines()
     return model, class_names
    
