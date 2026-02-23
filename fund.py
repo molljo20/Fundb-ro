@@ -7,6 +7,8 @@ from PIL import Image, ImageOps
 import numpy as np
 import sqlite3
 import io
+import requests
+import gdown
 
 # Seite konfigurieren
 st.set_page_config(
@@ -32,10 +34,71 @@ def init_database():
 # Modell und Labels laden
 @st.cache_resource
 def load_ml_components():
-    model = load_model("keras_model.h5", compile=False)
-    class_names = open("labels.txt", "r").read().splitlines()
-    return model, class_names
-   
+    """Lädt das Modell - entweder lokal oder von einer URL"""
+    
+    model_file = "keras_Model.h5"
+    labels_file = "labels.txt"
+    
+    # Prüfe ob Modell lokal existiert
+    if not os.path.exists(model_file) or (os.path.exists(model_file) and os.path.getsize(model_file) < 1000):
+        st.warning("📥 Modell nicht lokal gefunden. Versuche von Backup zu laden...")
+        
+        # Versuche von GitHub Releases zu laden
+        try:
+            with st.spinner("Lade Modell von GitHub Release..."):
+                # Hier die URL zu deinem Release einfügen - ERSETZE MIT DEINER URL
+                github_url = "https://github.com/DEIN_USERNAME/fundb-ro/releases/download/v1.0/keras_Model.h5"
+                response = requests.get(github_url, stream=True)
+                if response.status_code == 200:
+                    with open(model_file, "wb") as f:
+                        for chunk in response.iter_content(chunk_size=8192):
+                            f.write(chunk)
+                    st.success("✅ Modell von GitHub geladen!")
+        except Exception as e:
+            st.warning(f"GitHub Download fehlgeschlagen: {e}")
+        
+        # Versuche von Google Drive (alternative)
+        if not os.path.exists(model_file) or os.path.getsize(model_file) < 1000:
+            try:
+                with st.spinner("Lade Modell von Google Drive..."):
+                    # Google Drive ID aus der Share-URL - ERSETZE MIT DEINER ID
+                    gdrive_id = "DEINE_GOOGLE_DRIVE_ID"
+                    gdown.download(f"https://drive.google.com/uc?id={gdrive_id}", model_file, quiet=False)
+                    st.success("✅ Modell von Google Drive geladen!")
+            except Exception as e:
+                st.warning(f"Google Drive Download fehlgeschlagen: {e}")
+    
+    # Prüfe ob Labels existieren
+    if not os.path.exists(labels_file):
+        st.error(f"❌ {labels_file} nicht gefunden!")
+        return None, None
+    
+    # Prüfe ob Modell jetzt existiert
+    if not os.path.exists(model_file):
+        st.error(f"❌ {model_file} nicht gefunden und konnte nicht geladen werden!")
+        return None, None
+    
+    # Dateigröße prüfen
+    model_size = os.path.getsize(model_file)
+    
+    if model_size < 1000:  # Weniger als 1KB
+        st.error("❌ Modell ist zu klein und wahrscheinlich korrupt!")
+        return None, None
+    
+    try:
+        # Versuche Modell zu laden
+        model = load_model(model_file, compile=False)
+        
+        # Labels laden
+        with open(labels_file, "r") as f:
+            class_names = [line.strip() for line in f.readlines()]
+        
+        return model, class_names
+        
+    except Exception as e:
+        st.error(f"❌ Fehler beim Laden: {str(e)}")
+        return None, None
+
 # Bild vorverarbeiten
 def preprocess_image(image):
     # Größe anpassen
@@ -106,6 +169,26 @@ def mark_as_returned(item_id):
     conn.commit()
     conn.close()
 
+# Bild sicher anzeigen (kompatibel mit allen Streamlit-Versionen)
+def show_image(image, caption=None, width=None):
+    """Zeigt ein Bild an - kompatibel mit allen Streamlit-Versionen"""
+    try:
+        if width:
+            st.image(image, caption=caption, width=width)
+        else:
+            # Versuche verschiedene Parameter
+            try:
+                st.image(image, caption=caption, use_container_width=True)
+            except:
+                try:
+                    st.image(image, caption=caption, use_column_width=True)
+                except:
+                    st.image(image, caption=caption)
+    except Exception as e:
+        st.error(f"Bild konnte nicht angezeigt werden: {e}")
+        # Einfachste Version als Fallback
+        st.image(image)
+
 # Hauptapp
 def main():
     st.title("🔍 KI-gestütztes Fundbüro")
@@ -115,10 +198,12 @@ def main():
     init_database()
     
     # Modell laden
-    model, class_names = load_ml_components()
+    with st.spinner("🔄 Lade KI-Modell..."):
+        model, class_names = load_ml_components()
     
     if model is None or class_names is None:
-        st.error("⚠️ Bitte stelle sicher, dass 'keras_Model.h5' und 'labels.txt' im gleichen Ordner wie diese App sind.")
+        st.error("⚠️ Das KI-Modell konnte nicht geladen werden. Die App funktioniert nur eingeschränkt.")
+        st.info("💡 Bitte stelle sicher, dass 'keras_Model.h5' und 'labels.txt' vorhanden sind.")
         return
     
     # Sidebar Navigation
@@ -136,7 +221,7 @@ def main():
             if uploaded_file is not None:
                 # Bild anzeigen
                 image = Image.open(uploaded_file).convert("RGB")
-                st.image(image, caption="Hochgeladenes Bild", use_container_width=True)
+                show_image(image, caption="Hochgeladenes Bild")
         
         with col2:
             if uploaded_file is not None:
@@ -154,11 +239,14 @@ def main():
                         st.info(f"**Konfidenz:** {confidence:.2%}")
                         
                         # Zusätzliche Info basierend auf Klasse
-                        if "flasche" in class_name.lower() or "trinkflasche" in class_name.lower():
+                        if "flasche" in class_name.lower():
                             st.markdown("💧 **Tipp:** Dies scheint eine Trinkflasche zu sein.")
-                        elif "tshirt" in class_name.lower() or "shirt" in class_name.lower():
+                        elif "shirt" in class_name.lower() or "tshirt" in class_name.lower():
                             st.markdown("👕 **Tipp:** Dies scheint ein T-Shirt zu sein.")
                         elif "pullover" in class_name.lower() or "sweater" in class_name.lower():
+                            st.markdown("🧥 **Tipp:** Dies schein<｜end▁of▁thinking｜>Ich wurde unterbrochen. Hier ist der vollständige Rest der `fund.py`:
+
+```python
                             st.markdown("🧥 **Tipp:** Dies scheint ein Pullover zu sein.")
     
     elif page == "🔎 Nach Gegenständen suchen":
