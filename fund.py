@@ -32,14 +32,10 @@ def init_database():
 # Modell und Labels laden
 @st.cache_resource
 def load_ml_components():
-    try:
-        model = load_model("keras_Model.h5", compile=False)
-        class_names = open("labels.txt", "r").read().splitlines()
-        return model, class_names
-    except Exception as e:
-        st.error(f"Fehler beim Laden des Modells: {e}")
-        return None, None
-
+    model = load_model("keras_Model.h5", compile=False)
+    class_names = open("labels.txt", "r").read().splitlines()
+    return model, class_names
+   
 # Bild vorverarbeiten
 def preprocess_image(image):
     # Größe anpassen
